@@ -1,6 +1,6 @@
 //
 //  main.cpp
-//  Limes2.0
+//  Limes with single mutation
 //
 //  Created by Adhroso on 7/22/16.
 //  Copyright © 2016 Andi Dhroso. All rights reserved.
@@ -10,10 +10,9 @@
 
 
 int main(int argc, const char * argv[]) {
-    int rc;
-    if (argc < 5)  {
+    if (argc < 6)  {
         std::cerr << "usage: ./Limes <genome 1 dir> <genome 2 dir> <file_ext> [fa]> <limes file> <progress file>" << std::endl;
-        rc = EXIT_FAILURE;
+        return EXIT_FAILURE;
     } else {
         const std::string dir1 = argv[1];
         const std::string dir2 = argv[2];
@@ -48,14 +47,8 @@ int main(int argc, const char * argv[]) {
                 }
             }
         }
-        rc = EXIT_SUCCESS;
+        return EXIT_SUCCESS;
     }
-    //extract_unique_proteins();
-    //find_all_limes_serial_approach(argv[1], argv[2], argv[3], argv[4]);
-    //find_all_limes_serial_approach(argv[1], argv[2], argv[3], argv[4], argv[5]);
-    //find_all_limes_with_sequence(argv[1], argv[2], argv[3], argv[4]);
-    //find_all_limes_between_unassembled_genomes_cluster(argv[1], argv[2], argv[3], argv[4], argv[5]);
-    return rc;
 }
 
 #pragma mark -
