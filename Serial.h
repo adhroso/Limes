@@ -27,7 +27,6 @@ extern Limes limeObjs_target;
 extern Limes limeObjs_query;
 extern LookupTable vec2D;
 extern scottgs::Timing timer;
-extern const int MUTATIONS_ALLOWED;
 
 void remove_invalid_lime_candidates(Candidates &, const Sequence &, const Sequence &);
 void remove_invalid_lime_candidates_reverse(Candidates &, const Query &, const Target &);

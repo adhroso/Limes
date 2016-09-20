@@ -14,8 +14,6 @@ Limes limeObjs_query;
 LookupTable vec2D;
 scottgs::Timing timer;
 
-const int MUTATIONS_ALLOWED = 0;
-
 #pragma mark - Utility functions
 /**
  transforms a 'word' +w+ of length +len+ from the 4-letter nucleotide
