@@ -495,49 +495,57 @@ void run(const File &file, const Files &g, const File &limes, const Progress &pr
     Sequence query_sequence, target_sequence;
     Header target_header;
     
+    double lookuptable_time = 0;
+    
     std::ofstream out (limes.c_str());
     std::ofstream progress (progress_file.c_str());
     for (std::vector<std::string>::size_type i = 0; i < number_of_files; ++i) {
         const std::string target_file(g[i]);
         target_sequence = loadDataWithContentsOFile(target_file, target_header);
-        const Chromosome target_chr = generateLookupTableIndices(target_sequence);     //skips by 1 letter
-        initializeLookupTable(target_chr, target_sequence);                                        //we want to minimize vec2D generation
+        
         
         timer.split();
-        for (std::vector<std::pair<std::string, std::string> >::size_type n = 0; n < number_of_query_seq; ++n) {
-            const std::string query_header (query_sequences[n].first);
-            query_sequence = query_sequences[n].second;
-            
-            find_limes(target_sequence,query_sequence,target_chr);
-            
-            //write limes to file
-            if (!limeObjs_target.empty()) {
-                assert(limeObjs_target.size() == limeObjs_query.size());
-                std::sort(limeObjs_query.begin(), limeObjs_query.end());
-                std::sort(limeObjs_target.begin(), limeObjs_target.end());
-                const Limes::iterator  q_it = std::unique(limeObjs_query.begin(), limeObjs_query.end());
-                const Limes::iterator  t_it = std::unique(limeObjs_target.begin(), limeObjs_target.end());
-                
-                out << "#1" << query_header << std::endl;
-                out << "#start_1" << "\t" << "length" << std::endl;
-                std::for_each(limeObjs_query.begin(), q_it, [&out,&query_sequence](const std::pair<std::string::size_type, int> &l){
-                    out << l.first << "\t" << l.second << std::endl;
-                });
-                out << "#2" << target_header << std::endl;
-                out << "#start_2" << "\t" << "length" << std::endl;
-                std::for_each(limeObjs_target.begin(), t_it, [&out, &target_sequence](const std::pair<std::string::size_type, int> &l){
-                    out << l.first << "\t" << l.second << std::endl;
-                });
-                limeObjs_target.clear();
-                limeObjs_query.clear();
-            }
-        }
+        const Chromosome target_chr = generateLookupTableIndices(target_sequence);     //skips by 1 letter
+        initializeLookupTable(target_chr, target_sequence);                            //we want to minimize vec2D generation
+        lookuptable_time += timer.getSplitElapsedTime();
+        
+//        timer.split();
+//        for (std::vector<std::pair<std::string, std::string> >::size_type n = 0; n < number_of_query_seq; ++n) {
+//            const std::string query_header (query_sequences[n].first);
+//            query_sequence = query_sequences[n].second;
+//            
+//            find_limes(target_sequence,query_sequence,target_chr);
+//            
+//            //write limes to file
+//            if (!limeObjs_target.empty()) {
+//                assert(limeObjs_target.size() == limeObjs_query.size());
+//                std::sort(limeObjs_query.begin(), limeObjs_query.end());
+//                std::sort(limeObjs_target.begin(), limeObjs_target.end());
+//                const Limes::iterator  q_it = std::unique(limeObjs_query.begin(), limeObjs_query.end());
+//                const Limes::iterator  t_it = std::unique(limeObjs_target.begin(), limeObjs_target.end());
+//                
+//                out << "#1" << query_header << std::endl;
+//                out << "#start_1" << "\t" << "length" << std::endl;
+//                std::for_each(limeObjs_query.begin(), q_it, [&out,&query_sequence](const std::pair<std::string::size_type, int> &l){
+//                    out << l.first << "\t" << l.second << std::endl;
+//                });
+//                out << "#2" << target_header << std::endl;
+//                out << "#start_2" << "\t" << "length" << std::endl;
+//                std::for_each(limeObjs_target.begin(), t_it, [&out, &target_sequence](const std::pair<std::string::size_type, int> &l){
+//                    out << l.first << "\t" << l.second << std::endl;
+//                });
+//                limeObjs_target.clear();
+//                limeObjs_query.clear();
+//            }
+//        }
         progress << i+1 << "/" << number_of_files << "\t" << number_of_query_seq << "\nProcessing  time = " << timer.getSplitElapsedTime() << std::endl << std::endl;
     }
     progress << "Total time = " << timer.getTotalElapsedTime() << std::endl;
     out.close();
     progress.close();
     timer.stop();
+    
+    std::cout << "Lookup table creation total time = " << lookuptable_time << std::endl;
 }
 
 void run(const File &queryGenome, const File &targetG2, const File &limes, const File &progress_file) {
@@ -567,11 +575,15 @@ void run(const File &queryGenome, const File &targetG2, const File &limes, const
     load_next_batch(in_target, target_sequences, 1000000);
     in_target.close();
     
-    if (target_sequences.size() > query_sequences.size())
-        target_sequences.swap(query_sequences);
+//    if (target_sequences.size() > query_sequences.size())
+//        target_sequences.swap(query_sequences);
     
-    std::vector<std::pair<std::string, std::string> >::size_type number_of_query_seq = query_sequences.size();
-    std::vector<std::pair<std::string, std::string> >::size_type number_of_target_seq = target_sequences.size();
+    // ease of reading the code
+    typedef std::pair<Header, Sequence> Tupple;
+    typedef std::vector<Tupple> Tupples;
+    
+    Tupples::size_type number_of_query_seq = query_sequences.size();
+    Tupples::size_type number_of_target_seq = target_sequences.size();
     
     Sequence query_sequence, target_sequence;
     std::string target_header;
@@ -579,50 +591,57 @@ void run(const File &queryGenome, const File &targetG2, const File &limes, const
     std::ofstream out (limes.c_str());
     std::ofstream progress (progress_file.c_str());
     
-    scottgs::Timing outputTimer;
-    outputTimer.start();
-    for (std::vector<std::pair<std::string, std::string> >::size_type i = 0; i < number_of_target_seq; ++i) {
+    double lookuptable_time = 0;
+    for (Tupples::size_type i = 0; i < number_of_target_seq; ++i) {
         target_header = target_sequences[i].first;
         const Sequence target_sequence = target_sequences[i].second;
-        const Chromosome target_chr = generateLookupTableIndices(target_sequence);     //skips by 1 letter
-        initializeLookupTable(target_chr, target_sequence);                                        //we want to minimize vec2D generation
         
         timer.split();
-        for (std::vector<std::pair<std::string, std::string> >::size_type n = 0; n < number_of_query_seq; ++n) {
-            const std::string query_header (query_sequences[n].first);
-            query_sequence = query_sequences[n].second;
-            
-            find_limes(target_sequence,query_sequence,target_chr);
-            
-            //write limes to file
-            if (!limeObjs_target.empty()) {
-                outputTimer.split();
-                assert(limeObjs_target.size() == limeObjs_query.size());
-                std::sort(limeObjs_query.begin(), limeObjs_query.end());
-                std::sort(limeObjs_target.begin(), limeObjs_target.end());
-                const Limes::iterator  q_it = std::unique(limeObjs_query.begin(), limeObjs_query.end());
-                const Limes::iterator  t_it = std::unique(limeObjs_target.begin(), limeObjs_target.end());
-                
-                out << "#1" << query_header << std::endl;
-                out << "#start_1" << "\t" << "length" << std::endl;
-                std::for_each(limeObjs_query.begin(), q_it, [&out,&query_sequence](const std::pair<std::string::size_type, int> &l){
-                    out << l.first << "\t" << l.second << std::endl;
-                });
-                out << "#2" << target_header << std::endl;
-                out << "start_2" << "\t" << "length" << std::endl;
-                std::for_each(limeObjs_target.begin(), t_it, [&out, &target_sequence](const std::pair<std::string::size_type, int> &l){
-                    out << l.first << "\t" << l.second << std::endl;
-                });
-                limeObjs_target.clear();
-                limeObjs_query.clear();
-            }
-        }
-        progress << i+1 << "/" << number_of_target_seq << "\t" << number_of_query_seq << "\nProcessing  time = " << timer.getSplitElapsedTime() << std::endl << std::endl;
+        const Chromosome target_chr = generateLookupTableIndices(target_sequence);                 //skips by 1 letter
+        initializeLookupTable(target_chr, target_sequence);                                        //we want to minimize vec2D generation
+        const double tmp = timer.getSplitElapsedTime();
+        lookuptable_time += tmp;
+        progress << i+1 << "/" << number_of_target_seq << "\t" << number_of_query_seq << "\nProcessing  time = " << tmp << std::endl << std::endl;
+        
+//        for (Tupples::size_type n = 0; n < number_of_query_seq; ++n) {
+//            const std::string query_header (query_sequences[n].first);
+//            query_sequence = query_sequences[n].second;
+//            
+//            find_limes(target_sequence,query_sequence,target_chr);
+//            
+//            //write limes to file
+//            if (!limeObjs_target.empty()) {
+//                
+//                assert(limeObjs_target.size() == limeObjs_query.size());
+//                std::sort(limeObjs_query.begin(), limeObjs_query.end());
+//                std::sort(limeObjs_target.begin(), limeObjs_target.end());
+//                const Limes::iterator  q_it = std::unique(limeObjs_query.begin(), limeObjs_query.end());
+//                const Limes::iterator  t_it = std::unique(limeObjs_target.begin(), limeObjs_target.end());
+//                
+//                out << "#1" << query_header << std::endl;
+//                out << "#start_1" << "\t" << "length" << std::endl;
+//                std::for_each(limeObjs_query.begin(), q_it, [&out,&query_sequence](const std::pair<std::string::size_type, int> &l){
+//                    out << l.first << "\t" << l.second << std::endl;
+//                });
+//                
+//                out << "#2" << target_header << std::endl;
+//                out << "start_2" << "\t" << "length" << std::endl;
+//                std::for_each(limeObjs_target.begin(), t_it, [&out, &target_sequence](const std::pair<std::string::size_type, int> &l){
+//                    out << l.first << "\t" << l.second << std::endl;
+//                });
+//                
+//                limeObjs_target.clear();
+//                limeObjs_query.clear();
+//            }
+//        }
+//        progress << i+1 << "/" << number_of_target_seq << "\t" << number_of_query_seq << "\nProcessing  time = " << timer.getSplitElapsedTime() << std::endl << std::endl;
     }
     progress << "Total time = " << timer.getTotalElapsedTime() << std::endl;
     out.close();
     progress.close();
     timer.stop();
+    
+    std::cout << "Lookup table creation total time = " << lookuptable_time << std::endl;
 }
 
 #pragma mark -
