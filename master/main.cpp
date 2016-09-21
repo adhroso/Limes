@@ -127,7 +127,7 @@ bool isAssembled(std::vector<std::string> &g) {
 int main(int argc, const char * argv[])
 {
     int rc;
-    if (argc < 5)  {
+    if (argc < 6)  {
         std::cerr << "usage: ./Limes <genome 1 dir> <genome 2 dir> <file_ext> [fa]> <limes file> <progress file>" << std::endl;
         rc = EXIT_FAILURE;
     } else {
@@ -140,8 +140,8 @@ int main(int argc, const char * argv[])
         std::vector<std::string> g2 = retrieve_directory_content(dir2, fileType);
         if (g1.empty() || g2.empty()) return EXIT_FAILURE;
         
-        bool g1Assembled = true;//isAssembled(g1);
-        bool g2Assebmled = true;//isAssembled(g2);
+        bool g1Assembled = isAssembled(g1);
+        bool g2Assebmled = isAssembled(g2);
         if (g1Assembled && g2Assebmled) {
             std::cout << "Both are assembled" << std::endl;
             generate_limes(g1, g2, pathToLimes, pathToProgress);
@@ -154,8 +154,8 @@ int main(int argc, const char * argv[])
         
         } else {
             std::vector<std::string>::size_type i, j, size_g1 = g1.size(), size_g2 = g2.size();
-            std::cout << "first genome: " << dir1 << " has " << size_g1 << " number of files" << std::endl;
-            std::cout << "second genome: " << dir2 << " has " << size_g2 << " number of files" << std::endl;
+            std::cout << "first genome: " << dir1 << " has " << size_g1 << " file(s)" << std::endl;
+            std::cout << "second genome: " << dir2 << " has " << size_g2 << " file(s)" << std::endl;
             std::cout << "neither is assembled" << std::endl;
             for (i = 0; i < size_g1; ++i) {
                 for (j = 0; j < size_g2; ++j) {

@@ -623,19 +623,19 @@ void find_limes_in_forward_direction(Chromosome &query_chr, const RawData &query
     //////////////////////////
     // Find candidate limes //
     //////////////////////////
-    timer.split();
+    //timer.split();
     find_candidate_limes(query_chr, candidates);
-    std::cout << "\nNumber of candidate limes = " << candidates.size() << std::endl;
-    std::cout << "First stage processing time = " << timer.getSplitElapsedTime() << std::endl;
+    //std::cout << "\nNumber of candidate limes = " << candidates.size() << std::endl;
+    //std::cout << "First stage processing time = " << timer.getSplitElapsedTime() << std::endl;
     
     //////////////////////////////////
     // Remove invalid candidates    //
     //////////////////////////////////
-    timer.split();
+    //timer.split();
     remove_invalid_lime_candidates(candidates, query_data, target_data);
     // std::cout << "\nNumber of candidate limes = " << candidates.size() << std::endl;
-    std::cout << "Second stage processing time = " << timer.getSplitElapsedTime() << std::endl;
-    std::cout << "**************************************************************" << std::endl;
+    //std::cout << "Second stage processing time = " << timer.getSplitElapsedTime() << std::endl;
+    //std::cout << "**************************************************************" << std::endl;
 }
 
 void find_limes_in_reverse_direction(Chromosome &query_chr, const RawData &query_data, const RawData &target_data, Candidates &candidates) {
@@ -923,13 +923,19 @@ void generate_limes(const std::string &queryGenome, const std::string &targetG2,
     std::ofstream out (limes.c_str());
     std::ofstream progress (progress_file.c_str());
     
-    scottgs::Timing outputTimer;
-    outputTimer.start();
+//    scottgs::Timing outputTimer;
+//    outputTimer.start();
+    double lookuptable_time = 0;
     for (std::vector<std::pair<std::string, std::string> >::size_type i = 0; i < number_of_target_seq; ++i) {
         target_header = target_sequences[i].first;
         const RawData target_sequence = target_sequences[i].second;
+        
+        timer.split();
         const Chromosome target_chr = generateHashWithContentsOfData_approach_1_B(target_sequence);     //skips by 1 letter
         initializeVec2D_approach_1(target_chr, target_sequence);                                        //we want to minimize vec2D generation
+        const double tmp = timer.getSplitElapsedTime();
+        lookuptable_time += tmp;
+        std::cout << i+1 << "/" << number_of_target_seq << "\t" << number_of_query_seq << "\nLookup table time = " << tmp << std::endl << std::endl;
         
         timer.split();
         for (std::vector<std::pair<std::string, std::string> >::size_type n = 0; n < number_of_query_seq; ++n) {
@@ -940,7 +946,7 @@ void generate_limes(const std::string &queryGenome, const std::string &targetG2,
             
             //write limes to file
             if (!limeObjs_target.empty()) {
-                outputTimer.split();
+//                outputTimer.split();
                 assert(limeObjs_target.size() == limeObjs_query.size());
                 std::sort(limeObjs_query.begin(), limeObjs_query.end());
                 std::sort(limeObjs_target.begin(), limeObjs_target.end());
