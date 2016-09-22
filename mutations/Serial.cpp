@@ -160,12 +160,14 @@ void initializeLookupTable(const TargetChr &chr, std::string s="") {  //do we ne
     }
 }
 
-long offset(std::string::const_iterator first1, std::string::const_iterator last1, std::string::const_iterator first2) {
+long offset(std::string::const_iterator first1, std::string::const_iterator last1, std::string::const_iterator first2, int &mut_pos) {
     std::pair<std::string::const_iterator, std::string::const_iterator> pair;
-    pair = std::mismatch(first1, last1, first2, [](char a, char b){
+    int count = 0;
+    pair = std::mismatch(first1, last1, first2, [&count](char a, char b){
         switch (a) {
             case 'A':   case 'C':   case 'G':   case 'T': case 'a':   case 'c':   case 'g':   case 't':
-                return a==b ;
+                if (a!=b) count++;
+                return count<2 ;
             default:
                 return false;
         }
@@ -173,12 +175,14 @@ long offset(std::string::const_iterator first1, std::string::const_iterator last
     return  std::distance(first1, pair.first);
 }
 
-long offset(std::string::const_reverse_iterator first1, std::string::const_reverse_iterator last1, std::string::const_reverse_iterator first2) {
+long offset(std::string::const_reverse_iterator first1, std::string::const_reverse_iterator last1, std::string::const_reverse_iterator first2,const bool mut_allow_mut) {
     std::pair<std::string::const_reverse_iterator, std::string::const_reverse_iterator> pair;
-    pair = std::mismatch(first1, last1, first2, [](char a, char b){
+    int count = mut_allow_mut? 0 : 1;
+    pair = std::mismatch(first1, last1, first2, [&count](char a, char b){
         switch (a) {
             case 'A':   case 'C':   case 'G':   case 'T': case 'a':   case 'c':   case 'g':   case 't':
-                return a==b;
+                if (a!=b) count++;
+                return count<2 ;
             default:
                 return false;
         }
@@ -217,7 +221,8 @@ void remove_invalid_lime_candidates(Candidates &candidates, const Query &d1, con
         const int queryDistanceToEnd = static_cast<int>(size1-idx_1);
         const int targetDistanceToEnd = static_cast<int>(size2-idx_2);
         
-        const long right_offset = (queryDistanceToEnd < targetDistanceToEnd) ? offset(d1_begin, d1_end, d2_begin) : offset(d2_begin,d2_end,d1_begin);
+        int mut_pos = 0;
+        const long right_offset = (queryDistanceToEnd < targetDistanceToEnd) ? offset(d1_begin, d1_end, d2_begin,mut_pos) : offset(d2_begin,d2_end,d1_begin,mut_pos);
         if (right_offset < SEQLENGTH/2 - WORDSIZE/2)
             continue;
         
@@ -229,7 +234,8 @@ void remove_invalid_lime_candidates(Candidates &candidates, const Query &d1, con
         std::advance(d1_rbegin, size1-idx_1);
         std::advance(d2_rbegin, size2-idx_2);
 
-        const long left_offset = (idx_1 < idx_2) ? offset(d1_rbegin, d1_rend, d2_rbegin) : offset(d2_rbegin, d2_rend, d1_rbegin);
+        const bool ALLOW_MUT = mut_pos==right_offset ? true : false;
+        const long left_offset = (idx_1 < idx_2) ? offset(d1_rbegin, d1_rend, d2_rbegin,ALLOW_MUT) : offset(d2_rbegin, d2_rend, d1_rbegin,ALLOW_MUT);
         
         const long diff = right_offset+left_offset;
         if (diff  >= SEQLENGTH) {
@@ -265,7 +271,8 @@ void remove_invalid_lime_candidates_reverse(Candidates &candidates, const Query 
         const int queryDistanceToEnd = static_cast<int>(size1-idx_1);
         const int targetDistanceToEnd = static_cast<int>(size2-idx_2);
         
-        const long right_offset = (queryDistanceToEnd < targetDistanceToEnd) ? offset(d1_begin, d1_end, d2_begin) : offset(d2_begin, d2_end, d1_begin);
+        int mut_pos = 0;
+        const long right_offset = (queryDistanceToEnd < targetDistanceToEnd) ? offset(d1_begin, d1_end, d2_begin,mut_pos) : offset(d2_begin, d2_end, d1_begin,mut_pos);
         if (right_offset < SEQLENGTH/2 - WORDSIZE/2)
             continue;
         
@@ -277,7 +284,8 @@ void remove_invalid_lime_candidates_reverse(Candidates &candidates, const Query 
         std::advance(d1_rbegin, size1-idx_1);
         std::advance(d2_rbegin, size2-idx_2);
 
-        const long left_offset = (idx_1 < idx_2) ? offset(d1_rbegin, d1_rend, d2_rbegin) : offset(d2_rbegin, d2_rend, d1_rbegin);
+        const bool ALLOW_MUT = mut_pos==right_offset ? true : false;
+        const long left_offset = (idx_1 < idx_2) ? offset(d1_rbegin, d1_rend, d2_rbegin,ALLOW_MUT) : offset(d2_rbegin, d2_rend, d1_rbegin,ALLOW_MUT);
         
         const long diff = right_offset+left_offset;
         if (diff  >= SEQLENGTH) {
@@ -305,18 +313,35 @@ void generate_lime_candidates(const int i, const Chromosome &query_chr, Candidat
     const int chunk = SEQLENGTH/2 - WORDSIZE/2;
     const int length = static_cast<int>(vec2DPos.size());
     
+    std::bitset<WORDSIZE*2> seqA_end_template(seqA_end);
+    
     for (int j = 0; j < length; ++j) {
         const Element & element = vec2DPos[j];
         const int seqB_end = element.id;
-
-        if(seqA_end == seqB_end)
-            candidates.push_back(Candidate(i*chunk, element.idx));
+        
+        std::bitset<WORDSIZE*2> endA(seqA_end_template);
+        const std::bitset<WORDSIZE*2> endB(seqB_end);
+        
+        endA ^= endB;
+        
+        //////////////////////////////////////////////////////////////////////////
+        // One character occupies two bits, hence less than 3
+        // Increment by 2 to avoid comparing bits from different characters
+        //////////////////////////////////////////////////////////////////////////
+        if(endA.count() < 3) {
+            int count = 0;
+            for (int k = 0; k < WORDSIZE*2; k+=2) {
+                if (endA[k] || endA[k+1]) count++;
+            }
+            
+            if(count < 2)
+                candidates.push_back(Candidate(i*chunk, element.idx));
+        }
     }
 }
 
 void find_lime_candidates(Chromosome &query_chr, Candidates &candidates) {
     
-    // std::cout << "Generating candidates...." << std::endl;
     const int iterations = static_cast<int>(query_chr.size()-1);
     for (int i = 0; i < iterations; ++i) {
         generate_lime_candidates(i, query_chr, candidates);
@@ -411,24 +436,24 @@ void run(const Files &g1, const Files &g2, const Output &pathToLimes, const Prog
     
     std::ofstream out (pathToLimes.c_str());
     std::ofstream progress (pathToProgress.c_str());
-    //double io_time = 0;
     
     int counter = 1;
-    //outter loop = the larger raw data size
+    
+    //note: outter loop should be the larger raw data size
     for (Files::size_type i = 0; i < g1Size; ++i) {
-        const std::string targetSeqFile(genome1[i]);
-        //timer.split();
+        const File targetSeqFile(genome1[i]);
         target_data = loadDataWithContentsOFile(targetSeqFile, targetSeqHeader);
-        // io_time += timer.getSplitElapsedTime();
 
-        target_chr = generateLookupTableIndices(target_data);          //skips by 1 letter
-        initializeLookupTable(target_chr);                             //we want to minimize vec2D generation
+        //////////////////////////////////////////////
+        // Skips by 1 letter
+        // goal: Need to minimize vec2D generation
+        //////////////////////////////////////////////
+        target_chr = generateLookupTableIndices(target_data);
+        initializeLookupTable(target_chr);
         
         for (Files::size_type j = 0; j < g2Size; ++j) {
-            const std::string querySeqFile(genome2[j]);
-            //timer.split();
+            const File querySeqFile(genome2[j]);
             query_data = loadDataWithContentsOFile(querySeqFile, querySeqHeader);
-            //io_time += timer.getSplitElapsedTime();
             
             timer.split();
             progress << "Processing..." << counter << "/" << totalComparisons << "\n";
@@ -438,7 +463,9 @@ void run(const Files &g1, const Files &g2, const Output &pathToLimes, const Prog
             
             progress << "Processing time = " << timer.getSplitElapsedTime() << "\n" << std::endl;
             
-            //write limes to file
+            //////////////////////////////////////
+            // Write limes to file
+            //////////////////////////////////////
             if (!limeObjs_target.empty()) {
                 assert(limeObjs_target.size() == limeObjs_query.size());
                 std::sort(limeObjs_query.begin(), limeObjs_query.end());
@@ -462,7 +489,6 @@ void run(const Files &g1, const Files &g2, const Output &pathToLimes, const Prog
             counter++;
         }
     }
-    //progress << "Total io time = " << io_time << std::endl;
     progress << "Total time = " << timer.getTotalElapsedTime() << std::endl;
     out.close();
     progress.close();
@@ -498,10 +524,15 @@ void run(const File &file, const Files &g, const File &limes, const Progress &pr
     std::ofstream out (limes.c_str());
     std::ofstream progress (progress_file.c_str());
     for (std::vector<std::string>::size_type i = 0; i < number_of_files; ++i) {
-        const std::string target_file(g[i]);
+        const File target_file(g[i]);
+        
+        //////////////////////////////////////////////
+        // Skips by 1 letter
+        // goal: Need to minimize vec2D generation
+        //////////////////////////////////////////////
         target_sequence = loadDataWithContentsOFile(target_file, target_header);
-        const Chromosome target_chr = generateLookupTableIndices(target_sequence);     //skips by 1 letter
-        initializeLookupTable(target_chr, target_sequence);                                        //we want to minimize vec2D generation
+        const Chromosome target_chr = generateLookupTableIndices(target_sequence);
+        initializeLookupTable(target_chr, target_sequence);
         
         timer.split();
         for (std::vector<std::pair<std::string, std::string> >::size_type n = 0; n < number_of_query_seq; ++n) {
@@ -510,7 +541,9 @@ void run(const File &file, const Files &g, const File &limes, const Progress &pr
             
             find_limes(target_sequence,query_sequence,target_chr);
             
-            //write limes to file
+            //////////////////////////////////////
+            // Write limes to file
+            //////////////////////////////////////
             if (!limeObjs_target.empty()) {
                 assert(limeObjs_target.size() == limeObjs_query.size());
                 std::sort(limeObjs_query.begin(), limeObjs_query.end());
@@ -584,8 +617,14 @@ void run(const File &queryGenome, const File &targetG2, const File &limes, const
     for (std::vector<std::pair<std::string, std::string> >::size_type i = 0; i < number_of_target_seq; ++i) {
         target_header = target_sequences[i].first;
         const Sequence target_sequence = target_sequences[i].second;
-        const Chromosome target_chr = generateLookupTableIndices(target_sequence);     //skips by 1 letter
-        initializeLookupTable(target_chr, target_sequence);                                        //we want to minimize vec2D generation
+        
+        
+        //////////////////////////////////////////////
+        // Skips by 1 letter
+        // goal: Need to minimize vec2D generation
+        //////////////////////////////////////////////
+        const Chromosome target_chr = generateLookupTableIndices(target_sequence);
+        initializeLookupTable(target_chr, target_sequence);
         
         timer.split();
         for (std::vector<std::pair<std::string, std::string> >::size_type n = 0; n < number_of_query_seq; ++n) {
@@ -594,7 +633,9 @@ void run(const File &queryGenome, const File &targetG2, const File &limes, const
             
             find_limes(target_sequence,query_sequence,target_chr);
             
-            //write limes to file
+            //////////////////////////////////////
+            // Write limes to file
+            //////////////////////////////////////
             if (!limeObjs_target.empty()) {
                 outputTimer.split();
                 assert(limeObjs_target.size() == limeObjs_query.size());
