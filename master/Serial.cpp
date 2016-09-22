@@ -207,9 +207,14 @@ void initializeVec2D_approach_1(const Chromosome &chr, std::string s="") {  //do
         assert(i+chunk < chr.size());
         const int begin = chr[i];
         const int end = chr[i+chunk];
-        if (begin > -1 && end > -1) {            // no negative values should be in Element.id
+        
+        ////////////////////////////////////////////////
+        // No negative values should be in Element.id
+        // Index (i) refers to the beginning key
+        ////////////////////////////////////////////////
+        if (begin > -1 && end > -1) {
             Pos & pos = vec2D[begin];
-            pos.push_back(Element(end, i));    //index (i) refers to the beginning
+            pos.push_back(Element(end, i));
         }
     }
 }
@@ -923,19 +928,18 @@ void generate_limes(const std::string &queryGenome, const std::string &targetG2,
     std::ofstream out (limes.c_str());
     std::ofstream progress (progress_file.c_str());
     
-//    scottgs::Timing outputTimer;
-//    outputTimer.start();
     double lookuptable_time = 0;
     for (std::vector<std::pair<std::string, std::string> >::size_type i = 0; i < number_of_target_seq; ++i) {
         target_header = target_sequences[i].first;
         const RawData target_sequence = target_sequences[i].second;
         
         timer.split();
-        const Chromosome target_chr = generateHashWithContentsOfData_approach_1_B(target_sequence);     //skips by 1 letter
-        initializeVec2D_approach_1(target_chr, target_sequence);                                        //we want to minimize vec2D generation
-        const double tmp = timer.getSplitElapsedTime();
-        lookuptable_time += tmp;
-        std::cout << i+1 << "/" << number_of_target_seq << "\t" << number_of_query_seq << "\nLookup table time = " << tmp << std::endl << std::endl;
+        //////////////////////////////////////////////
+        // Skips by 1 letter
+        // goal: Need to minimize vec2D generation
+        //////////////////////////////////////////////
+        const Chromosome target_chr = generateHashWithContentsOfData_approach_1_B(target_sequence);
+        initializeVec2D_approach_1(target_chr, target_sequence);
         
         timer.split();
         for (std::vector<std::pair<std::string, std::string> >::size_type n = 0; n < number_of_query_seq; ++n) {
@@ -946,7 +950,6 @@ void generate_limes(const std::string &queryGenome, const std::string &targetG2,
             
             //write limes to file
             if (!limeObjs_target.empty()) {
-//                outputTimer.split();
                 assert(limeObjs_target.size() == limeObjs_query.size());
                 std::sort(limeObjs_query.begin(), limeObjs_query.end());
                 std::sort(limeObjs_target.begin(), limeObjs_target.end());
