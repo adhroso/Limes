@@ -163,21 +163,30 @@ void initializeLookupTable(const TargetChr &chr, std::string s="") {  //do we ne
 long offset(std::string::const_iterator first1, std::string::const_iterator last1, std::string::const_iterator first2, int &mut_pos) {
     std::pair<std::string::const_iterator, std::string::const_iterator> pair;
     int count = 0;
-    pair = std::mismatch(first1, last1, first2, [&count](char a, char b){
+    int pos = 0;
+    int tmp = 0;
+    pair = std::mismatch(first1, last1, first2, [&count, &pos, &tmp](char a, char b){
         switch (a) {
             case 'A':   case 'C':   case 'G':   case 'T': case 'a':   case 'c':   case 'g':   case 't':
-                if (a!=b) count++;
+                if (a!=b) {
+                    count++;
+                    
+                    if (count<2) tmp=pos;
+                }
+                
+                pos++;
                 return count<2 ;
             default:
                 return false;
         }
     });
+    mut_pos=tmp;
     return  std::distance(first1, pair.first);
 }
 
-long offset(std::string::const_reverse_iterator first1, std::string::const_reverse_iterator last1, std::string::const_reverse_iterator first2,const bool mut_allow_mut) {
+long offset(std::string::const_reverse_iterator first1, std::string::const_reverse_iterator last1, std::string::const_reverse_iterator first2, const bool allow_mut) {
     std::pair<std::string::const_reverse_iterator, std::string::const_reverse_iterator> pair;
-    int count = mut_allow_mut? 0 : 1;
+    int count = allow_mut? 0 : 1;
     pair = std::mismatch(first1, last1, first2, [&count](char a, char b){
         switch (a) {
             case 'A':   case 'C':   case 'G':   case 'T': case 'a':   case 'c':   case 'g':   case 't':
@@ -241,6 +250,11 @@ void remove_invalid_lime_candidates(Candidates &candidates, const Query &d1, con
         if (diff  >= SEQLENGTH) {
             limeObjs_target.push_back(std::make_pair(idx_2-left_offset,diff));
             limeObjs_query.push_back(std::make_pair(idx_1-left_offset,diff));
+            
+            if(idx_2-left_offset == 11047460 && diff == 113) {
+                std::cout << "key poss:" << idx_2 << ", seq start pos: " << idx_2-left_offset << ", seq: " << d2.substr(idx_2-left_offset, diff) << std::endl;
+                //180715756
+            }
         }
     }
 }
@@ -273,6 +287,14 @@ void remove_invalid_lime_candidates_reverse(Candidates &candidates, const Query 
         
         int mut_pos = 0;
         const long right_offset = (queryDistanceToEnd < targetDistanceToEnd) ? offset(d1_begin, d1_end, d2_begin,mut_pos) : offset(d2_begin, d2_end, d1_begin,mut_pos);
+
+        const bool ALLOW_MUT = mut_pos==right_offset ? true : true;
+        
+        if (idx_2 == 11047462 && idx_1 == 14756104) {
+            std::cout << "\nRight offset: " << right_offset << std::endl;
+            std::cout << "allow mutations: " << (ALLOW_MUT ? "yes" : "no") << ", mut pos: " << mut_pos << std::endl;
+        }
+        
         if (right_offset < SEQLENGTH/2 - WORDSIZE/2)
             continue;
         
@@ -284,8 +306,11 @@ void remove_invalid_lime_candidates_reverse(Candidates &candidates, const Query 
         std::advance(d1_rbegin, size1-idx_1);
         std::advance(d2_rbegin, size2-idx_2);
 
-        const bool ALLOW_MUT = mut_pos==right_offset ? true : false;
         const long left_offset = (idx_1 < idx_2) ? offset(d1_rbegin, d1_rend, d2_rbegin,ALLOW_MUT) : offset(d2_rbegin, d2_rend, d1_rbegin,ALLOW_MUT);
+        if (idx_2 == 11047462 && idx_1 == 14756104) {
+            std::cout << "left offset: " << left_offset << std::endl << std::endl ;
+        }
+        
         
         const long diff = right_offset+left_offset;
         if (diff  >= SEQLENGTH) {
@@ -293,6 +318,29 @@ void remove_invalid_lime_candidates_reverse(Candidates &candidates, const Query 
             const Sequence::size_type query_start = query_data_size - (idx_1+right_offset);
             limeObjs_target.push_back(std::make_pair(idx_2-left_offset, diff));
             limeObjs_query.push_back(std::make_pair(query_start, diff));
+            
+            if(idx_2-left_offset == 11047460 && diff == 113) {
+                std::cout << "found in reverse complement" << std::endl;
+                std::cout << "human: key pos:" << idx_2 << ", seq start pos: " << idx_2-left_offset << ", seq: " << target_data.substr(idx_2-left_offset, diff) << std::endl;
+                std::cout << "mouse: key pos:" << idx_1 << ", seq start pos: " << idx_1-left_offset << ", seq: " << query_data.substr(idx_1-left_offset, diff) << std::endl << std::endl;
+                
+                bool valid = false;
+                std::cout << "human: hash first key pos:" << idx_2 << ", pos of key in lime:" << idx_2-(idx_2-left_offset) << ", motif: " << target_data.substr(idx_2, WORDSIZE) << ", motif hash: "<< encodeWord((const u_char*)target_data.substr(idx_2, WORDSIZE).c_str(), WORDSIZE, valid) << std::endl;
+                std::cout << "mouse: hash first key pos:" << idx_1 << ", pos of key in lime:" << idx_1-(idx_1-left_offset) << ", motif: " << query_data.substr(idx_1, WORDSIZE) << ", motif hash: " << encodeWord((const u_char*)query_data.substr(idx_1, WORDSIZE).c_str(), WORDSIZE, valid) << std::endl << std::endl;
+                
+                const int chunk = SEQLENGTH/2 - WORDSIZE/2;
+                std::cout << "human: hash second key pos:" << idx_2 << ", pos of key in lime:" <<  (idx_2+chunk)-(idx_2-left_offset) << ", motif: " << target_data.substr(idx_2+chunk, WORDSIZE) << ", motif hash: " << encodeWord((const u_char*)target_data.substr(idx_2+chunk, WORDSIZE).c_str(), WORDSIZE, valid) << std::endl;
+                std::cout << "mouse: hash second key pos:" << idx_1 << ", pos of key in lime:" << (idx_1+chunk)-(idx_1-left_offset) <<  ", motif: " << query_data.substr(idx_1+chunk, WORDSIZE) << ", motif hash: " << encodeWord((const u_char*)query_data.substr(idx_1+chunk, WORDSIZE).c_str(), WORDSIZE, valid) << std::endl << std::endl;
+
+                
+                
+                std::cout << "human: first key motif: "  << target_data.substr(idx_2, WORDSIZE+2) << ", motif hash: " << encodeWord((const u_char*)target_data.substr(idx_2, WORDSIZE+2).c_str(), WORDSIZE+2, valid) << std::endl;
+                std::cout << "mouse: first key motif: " <<  query_data.substr(idx_1, WORDSIZE+2) << ", motif hash: " << encodeWord((const u_char*)query_data.substr(idx_1, WORDSIZE+2).c_str(), WORDSIZE+2, valid) << std::endl << std::endl;
+
+                std::cout << "human: hash second key motif: " << target_data.substr(idx_2+chunk, WORDSIZE+2) << ", motif hash: " << encodeWord((const u_char*)target_data.substr(idx_2+chunk, WORDSIZE+2).c_str(), WORDSIZE+2, valid) << std::endl;
+                std::cout << "mouse: hash second key motif: " << query_data.substr(idx_1+chunk, WORDSIZE+2) << ", motif hash: " << encodeWord((const u_char*)query_data.substr(idx_1+chunk, WORDSIZE+2).c_str(), WORDSIZE+2, valid) << std::endl << std::endl;
+                
+            }
          }
     }
 }
@@ -312,6 +360,11 @@ void generate_lime_candidates(const int i, const Chromosome &query_chr, Candidat
     const Pos & vec2DPos = vec2D[seqA_begin];
     const int chunk = SEQLENGTH/2 - WORDSIZE/2;
     const int length = static_cast<int>(vec2DPos.size());
+    
+    if(std::abs(i*chunk-14756104) < 20) {
+        std::cout << "pos: " << i*chunk << ", motif hash: " << query_chr[i] << std::endl;
+    }
+
     
     std::bitset<WORDSIZE*2> seqA_end_template(seqA_end);
     
