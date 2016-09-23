@@ -156,6 +156,9 @@ void initializeLookupTable(const TargetChr &chr, std::string s="") {  //do we ne
         if (begin > -1 && end > -1) {            // no negative values should be in Element.id
             Pos & pos = vec2D[begin];
             pos.push_back(Element(end, i));      //index (i) refers to the beginning
+            
+            Pos & pos2 = vec2D[end];
+            pos2.push_back(Element(begin,i));
         }
     }
 }
@@ -329,8 +332,8 @@ void remove_invalid_lime_candidates_reverse(Candidates &candidates, const Query 
                 std::cout << "mouse: hash first key pos:" << idx_1 << ", pos of key in lime:" << idx_1-(idx_1-left_offset) << ", motif: " << query_data.substr(idx_1, WORDSIZE) << ", motif hash: " << encodeWord((const u_char*)query_data.substr(idx_1, WORDSIZE).c_str(), WORDSIZE, valid) << std::endl << std::endl;
                 
                 const int chunk = SEQLENGTH/2 - WORDSIZE/2;
-                std::cout << "human: hash second key pos:" << idx_2 << ", pos of key in lime:" <<  (idx_2+chunk)-(idx_2-left_offset) << ", motif: " << target_data.substr(idx_2+chunk, WORDSIZE) << ", motif hash: " << encodeWord((const u_char*)target_data.substr(idx_2+chunk, WORDSIZE).c_str(), WORDSIZE, valid) << std::endl;
-                std::cout << "mouse: hash second key pos:" << idx_1 << ", pos of key in lime:" << (idx_1+chunk)-(idx_1-left_offset) <<  ", motif: " << query_data.substr(idx_1+chunk, WORDSIZE) << ", motif hash: " << encodeWord((const u_char*)query_data.substr(idx_1+chunk, WORDSIZE).c_str(), WORDSIZE, valid) << std::endl << std::endl;
+                std::cout << "human: hash second key pos:" << idx_2+(SEQLENGTH/2 - WORDSIZE/2) << ", pos of key in lime:" <<  (idx_2+chunk)-(idx_2-left_offset) << ", motif: " << target_data.substr(idx_2+chunk, WORDSIZE) << ", motif hash: " << encodeWord((const u_char*)target_data.substr(idx_2+chunk, WORDSIZE).c_str(), WORDSIZE, valid) << std::endl;
+                std::cout << "mouse: hash second key pos:" << idx_1+(SEQLENGTH/2 - WORDSIZE/2) << ", pos of key in lime:" << (idx_1+chunk)-(idx_1-left_offset) <<  ", motif: " << query_data.substr(idx_1+chunk, WORDSIZE) << ", motif hash: " << encodeWord((const u_char*)query_data.substr(idx_1+chunk, WORDSIZE).c_str(), WORDSIZE, valid) << std::endl << std::endl;
 
                 
                 
@@ -349,48 +352,83 @@ void remove_invalid_lime_candidates_reverse(Candidates &candidates, const Query 
 /**
     Phase I - Coarse grain filter
  */
+void find_candidates(const int seqA_begin, const int seqA_end, const int index, Candidates &candidates);
 void generate_lime_candidates(const int i, const Chromosome &query_chr, Candidates &candidates ) {
     
     const int seqA_begin = query_chr[i];
     if (seqA_begin < 0)
         return;
-
+    
     const int seqA_end = query_chr[i+1];
     
     const Pos & vec2DPos = vec2D[seqA_begin];
     const int chunk = SEQLENGTH/2 - WORDSIZE/2;
     const int length = static_cast<int>(vec2DPos.size());
     
-    if(std::abs(i*chunk-14756104) < 20) {
-        std::cout << "pos: " << i*chunk << ", motif hash: " << query_chr[i] << std::endl;
-    }
-
-    
-    std::bitset<WORDSIZE*2> seqA_end_template(seqA_end);
+    const std::bitset<WORDSIZE*2> endA(seqA_end);
     
     for (int j = 0; j < length; ++j) {
         const Element & element = vec2DPos[j];
         const int seqB_end = element.id;
+        std::bitset<WORDSIZE*2> endB(seqB_end);
         
-        std::bitset<WORDSIZE*2> endA(seqA_end_template);
-        const std::bitset<WORDSIZE*2> endB(seqB_end);
-        
-        endA ^= endB;
+//        if (std::abs(i*chunk-14756104) < 20 && seqA_begin == 2105376 && seqA_end == 2631720 && seqB_end == seqA_end) {
+//            std::cout << "pos: " << i*chunk << ", motif hash: " << seqA_begin << std::endl;
+//        }
+
+         endB ^= endA;
         
         //////////////////////////////////////////////////////////////////////////
         // One character occupies two bits, hence less than 3
         // Increment by 2 to avoid comparing bits from different characters
         //////////////////////////////////////////////////////////////////////////
-        if(endA.count() < 3) {
+        if (endB.none())
+            candidates.push_back(Candidate(i*chunk, element.idx));
+        else if(endB.count() < 3) {
             int count = 0;
             for (int k = 0; k < WORDSIZE*2; k+=2) {
-                if (endA[k] || endA[k+1]) count++;
+                if (endB[k] || endB[k+1]) count++;
             }
             
             if(count < 2)
                 candidates.push_back(Candidate(i*chunk, element.idx));
         }
     }
+    
+    find_candidates(seqA_begin, seqA_end, i*chunk, candidates);
+}
+
+//1. get subset using 10 as the index giving subset S={3,7,4,23}
+//2. ignore keys that are identical to 3 from S giving S={7,4,23}
+//3. do bitwise comparison between 3 and 7,4,23 and select those that are at most 2 bit different - in this case giving 4.
+//4. calculate index for 3
+//5. index for 4 should be idx.
+void find_candidates(const int seqA_begin, const int seqA_end, const int index, Candidates &candidates) {
+    //1,2
+    Pos vec2DPos = vec2D[seqA_end];
+    vec2DPos.erase(std::remove_if(vec2DPos.begin(), vec2DPos.end(), [seqA_begin](const Element &e){
+        return e.id == seqA_begin;
+    }), vec2DPos.end());
+    
+    const std::bitset<WORDSIZE*2> begin_A(seqA_begin);
+    for (int i = 0; i < vec2DPos.size(); ++i) {
+        const Element e = vec2DPos[i];
+        std::bitset<WORDSIZE*2> begin_B(e.id);
+        
+        //3.
+        begin_B ^= begin_A;
+        if(begin_B.count() < 3) {
+            int count = 0;
+            for (int k = 0; k < WORDSIZE*2; k+=2) {
+                if (begin_B[k] || begin_B[k+1]) count++;
+            }
+            
+            //4,5
+            if(count < 2)
+                candidates.push_back(Candidate(index, e.idx));
+        }
+    }
+    
 }
 
 void find_lime_candidates(Chromosome &query_chr, Candidates &candidates) {

@@ -19,7 +19,7 @@
 
 
 #pragma mark - Definitions
-#define WORDSIZE 12
+#define WORDSIZE 14
 #define SEQLENGTH 100
 
 #define BA_ENCODED_A 0x00
@@ -56,6 +56,7 @@ public:
     int id, idx;
 };
 typedef std::vector<Element> Pos;
+typedef Pos Elements;
 typedef std::vector<Pos> LookupTable;
 
 class Candidate {
