@@ -36,8 +36,11 @@ void find_limes_in_forward_direction(QueryChr &, const Query &, const Target &, 
 void find_limes_in_reverse_direction(QueryChr &, const Query &, const Target &, Candidates &candidates);
 void find_limes(const Target &, const Query &, const QueryChr&);
 
+long offset(std::string::const_iterator first1, std::string::const_iterator last1, std::string::const_iterator first2, int &mut_pos);
+long offset(std::string::const_reverse_iterator first1, std::string::const_reverse_iterator last1, std::string::const_reverse_iterator first2, int &mut_pos);
+
 void run(const Files &, const Files &, const Output &, const Progress &);
 void run(const Sequence &, const Files &g, const Output &, const Progress &);
 void run(const File &, const File &, const Output &, const Progress &);
-
+u_int32_t encodeWord(const u_char* word, unsigned short len, bool &valid);
 #endif /* defined(__Limes__Serial__) */
