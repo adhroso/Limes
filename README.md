@@ -1,2 +1,2 @@
 # Limes
-Find DNA sequences that are common between two species. 
+Find DNA sequences that are common between two species without mutations. 
