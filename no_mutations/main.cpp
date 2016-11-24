@@ -10,21 +10,24 @@
 
 
 int main(int argc, const char * argv[]) {
-    if (argc < 6)  {
-        std::cerr << "usage: ./Limes <genome 1 dir> <genome 2 dir> <file_ext> [fa]> <limes file> <progress file>" << std::endl;
+    if (argc < 8)  {
+        std::cerr << "usage: ./Limes [unassembled: 0, assembled: 1] <genome 1 dir> [unassembled: 0, assembled: 1] <genome 2 dir> <file_ext> [fa]> <limes file> <progress file>" << std::endl;
         return EXIT_FAILURE;
     } else {
-        const std::string dir1 = argv[1];
-        const std::string dir2 = argv[2];
-        const std::string fileType = argv[3];
-        const std::string pathToLimes = argv[4];
-        const std::string pathToProgress = argv[5];
+        const bool g1Assembled = atoi(argv[1]);
+        const std::string dir1 = argv[2];
+        
+        const bool g2Assebmled = atoi(argv[3]);
+        const std::string dir2 = argv[4];
+        
+        const std::string fileType = argv[5];
+        const std::string pathToLimes = argv[6];
+        const std::string pathToProgress = argv[7];
+        
         Files g1 = retrieve_directory_content(dir1, fileType);
         Files g2 = retrieve_directory_content(dir2, fileType);
         if (g1.empty() || g2.empty()) return EXIT_FAILURE;
         
-        bool g1Assembled = isAssembled(g1);
-        bool g2Assebmled = isAssembled(g2);
         if (g1Assembled && g2Assebmled) {
             std::cout << "Both are assembled" << std::endl;
             run(g1, g2, pathToLimes, pathToProgress);
