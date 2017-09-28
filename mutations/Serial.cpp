@@ -528,8 +528,9 @@ void generate_lime_candidates(const std::size_t i, const Chromosome &query_chr, 
 //        if (std::abs(i*chunk-14756104) < 20 && seqA_begin == 2105376 && seqA_end == 2631720 && seqB_end == seqA_end) {
 //            std::cout << "pos: " << i*chunk << ", motif hash: " << seqA_begin << std::endl;
 //        }
-
-         endB ^= endA;
+        
+        // Perform exclusive OR to get the differences between the two keys
+        endB ^= endA;
         
         //////////////////////////////////////////////////////////////////////////
         // One character occupies two bits, hence less than 3
@@ -542,12 +543,9 @@ void generate_lime_candidates(const std::size_t i, const Chromosome &query_chr, 
         }
         else if(endB.count() < 3) {
             int count = 0;
-            for (int k = 0; k < WORDSIZE*2; k+=2) {
-                if (endB[k] || endB[k+1]) count++;
-            }
+            for (int k = 0; k < WORDSIZE*2; k+=2) if (endB[k] || endB[k+1]) count++;
             
-            if(count < 2)
-                candidates.push_back(Candidate(i*chunk, element.idx));
+            if(count < 2) candidates.push_back(Candidate(i*chunk, element.idx));
         }
     }
     
@@ -555,11 +553,11 @@ void generate_lime_candidates(const std::size_t i, const Chromosome &query_chr, 
 }
 
 //0.
-//S1 = {1	"3	10"	15}
-//S2 = {5	"3	10"	7	"4	10"	23}
+//S1 = {1	"3	10"	15}             - query
+//S2 = {5	"3	10"	7	"4	10"	23} - target
 
-//1. get subset using 10 as the index giving subset S={3,7,4,23}
-//2. ignore keys that are identical to 3 from S giving S={7,4,23}
+//1. get subset using 10 as the index giving subset S2={3,7,4,23}
+//2. ignore keys that are identical to 3 from S giving S2={7,4,23}
 //3. do bitwise comparison between 3 and 7,4,23 and select those that are at most 2 bit different - in this case giving 4.
 //4. calculate index for 3
 //5. index for 4 should be idx.
@@ -579,16 +577,12 @@ void find_candidates(const Hash seqA_begin, const Hash seqA_end, const std::size
         begin_B ^= begin_A;
         if(begin_B.count() < 3) {
             int count = 0;
-            for (int k = 0; k < WORDSIZE*2; k+=2) {
-                if (begin_B[k] || begin_B[k+1]) count++;
-            }
+            for (int k = 0; k < WORDSIZE*2; k+=2) if (begin_B[k] || begin_B[k+1]) count++;
             
             //4,5
-            if(count < 2)
-                candidates.push_back(Candidate(index, e.idx));
+            if(count < 2) candidates.push_back(Candidate(index, e.idx));
         }
     }
-    
 }
 
 void find_lime_candidates(Chromosome &query_chr, Candidates &candidates) {
