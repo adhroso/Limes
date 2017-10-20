@@ -161,7 +161,7 @@ void initializeLookupTable(const TargetChr &chr, std::string s="") {  //do we ne
             pos.push_back(Element(end, i));      //index (i) refers to the beginning
             
             Pos & pos2 = vec2D[end];
-            pos2.push_back(Element(begin,i));
+            pos2.push_back(Element(begin * -1, i)); //multiply by -1 to simply flag elements to detect elements with mutations in the prefix
         }
     }
 }
@@ -191,44 +191,46 @@ void initializeLookupTable(const TargetChr &chr, std::string s="") {  //do we ne
 //    //std::cout << "pos: " << pos << std::endl;
 //    return  std::distance(first1, pair.first);
 //}
-long offset(std::string::const_iterator first1, std::string::const_iterator last1, std::string::const_iterator first2, Mutations &mutations) {
+long offset(std::string::const_iterator first1, std::string::const_iterator last1, std::string::const_iterator first2, std::size_t start_pos, Mutations &mutations) {
     std::pair<std::string::const_iterator, std::string::const_iterator> pair;
-    int pos = 0;
+    
     Mutations m;
     
-    pair = std::mismatch(first1, last1, first2, [&pos,&m](char a, char b) {
+    pair = std::mismatch(first1, last1, first2, [&m, &start_pos](char a, char b) {
         if (a=='N' || b=='N') {
             return false;
         } else if (a!=b) {
-            m.push_back(pos);
-            
-            return m.size()<2;
+            m.push_back(start_pos);
         }
-        pos++;
-        return true;
+        start_pos++;
+        return m.size()<2;
     });
+    
     m.swap(mutations);
     return std::distance(first1, pair.first);
 }
 
-long offset(std::string::const_reverse_iterator first1, std::string::const_reverse_iterator last1, std::string::const_reverse_iterator first2, Mutations& mutations) {
+long offset(std::string::const_reverse_iterator first1, std::string::const_reverse_iterator last1, std::string::const_reverse_iterator first2, std::size_t start_pos, Mutations& mutations) {
     std::pair<std::string::const_reverse_iterator, std::string::const_reverse_iterator> pair;
     
     Mutations m;
-    int pos = 0;
     
-    
-    pair = std::mismatch(first1, last1, first2, [&pos,&m](char a, char b) {
+    pair = std::mismatch(first1, last1, first2, [&m,&start_pos](char a, char b) {
         if (a=='N' || b=='N') {
             return false;
         } else if (a!=b) {
-            m.push_back(pos);
-            return m.size()<2;
+            m.push_back(start_pos);
         }
-        pos++;
-        return true;
+        start_pos--;
+        return m.size()<2;
     });
+    
+    //because we're expanding to the left, second accuring mutation should be in the first position.
+    if (m.size() > 1)
+        std::swap(m[0], m[1]);
+    
     m.swap(mutations);
+    
     return  std::distance(first1, pair.first);
 }
 
@@ -273,48 +275,50 @@ long offset(std::string::const_reverse_iterator first1, std::string::const_rever
 //}
 
 #pragma mark - Fine grain filter
-void debug (const std::string direction, const long left_offset, const int left_mut, const int right_mut, const long right_offset, const std::size_t query_start, const std::size_t target_start, const std::size_t idx_1,const std::size_t idx_2,const long diff,const Sequence &query_seq, const Sequence &target_seq) {
+std::size_t offset_test_forward(std::string::const_iterator first1, std::string::const_iterator last1, std::string::const_iterator first2, std::size_t start_pos, Mutations &mutations) {
+    std::pair<std::string::const_iterator, std::string::const_iterator> pair;
     
-    if(target_start == 12234178 && diff>=137) {
-        std::cout << "\nFound in " << direction << " direction" << std::endl;
-        
-        std::cout << "Target seq length: " << target_seq.size() << ", query seq length: " << query_seq.size() << std::endl;
-        std::cout << "Left offset: " << left_offset << ", left mutation pos: " << left_mut << ", right mutation pos: " << right_mut << ", right offset: " << right_offset  << ", diff: " << diff <<  std::endl << std::endl;
+    Mutations m;
     
-    
-        std::cout << "mouse: key pos:" << idx_1 << ", seq start pos: " << query_start << ", seq: " << query_seq.substr(query_start, diff) << std::endl;
-        std::cout << "human: key pos:" << idx_2 << ", seq start pos: " << target_start << ", seq: " << target_seq.substr(target_start, diff) << std::endl << std::endl;
-        
-        const int chunk = SEQLENGTH/2 - WORDSIZE/2;
-        std::cout << "mouse: first: " << idx_1 << ", second: " << idx_1+chunk << ", third: " << idx_1+chunk+chunk << std::endl;
-        std::cout << "mouse: first: " << query_seq.substr(idx_1, WORDSIZE) << ", second: " << query_seq.substr(idx_1+chunk, WORDSIZE) << ", third: " << query_seq.substr(idx_1+chunk+chunk, WORDSIZE) << std::endl << std::endl;
-        
-        std::cout << "human: first: " << idx_2 << ", second: " << idx_2+chunk << ", third: " << idx_2+chunk+chunk << std::endl;
-        std::cout << "human: first: " << target_seq.substr(idx_2, WORDSIZE) << ", second: " << target_seq.substr(idx_2+chunk, WORDSIZE) << ", third: " << target_seq.substr(idx_2+chunk+chunk, WORDSIZE) << std::endl << std::endl;
-        
-        
-        const int wordsize = WORDSIZE+2;
-        const int chunk2 = SEQLENGTH/2 - wordsize/2;
-        std::size_t length = target_seq.size();
-    
-        size_t prev=0, curr=0, next=0;
-        bool valid = false;
-        for (size_t i = 0; i < length; i+=chunk2) {
-            if (i+chunk2 < idx_1) {
-                prev = i+chunk2;
-            } else if (i+chunk2 >= idx_1) {
-                curr = i+chunk2;
-                next = i+(chunk2*2);
-                std::cout << "lookup key positions when word size: " << wordsize << std::endl;
-                std::cout << "idx_1: " << idx_1 << std::endl;
-                std::cout << "mouse prev pos: " << prev << ", curr pos: " << curr << ", next pos: " << next << std::endl;
-                std::cout << "mouse prev motif: " << query_seq.substr(prev,wordsize) << ", curr motif: " << query_seq.substr(curr,wordsize) << ", next motif: " << query_seq.substr(next,wordsize) << std::endl;
-                std::cout << "mouse prev hash: " << encodeWord((const u_char*)query_seq.substr(prev,wordsize).c_str(), wordsize, valid) << ", curr hash: " <<  encodeWord((const u_char*)query_seq.substr(curr,wordsize).c_str(), wordsize, valid) << ", next hash: " <<  encodeWord((const u_char*)query_seq.substr(next,wordsize).c_str(), wordsize, valid) << std::endl;
-                break;
-            }
+    pair = std::mismatch(first1, last1, first2, [&m, &start_pos](char a, char b) {
+        if (a=='N' || b=='N') {
+            return false;
+        } else if (a!=b) {
+            m.push_back(start_pos);
         }
-        std::cout << "\n=============================================================================" << std::endl;
-    }
+        start_pos++;
+        return m.size()<2;
+    });
+    
+    m.swap(mutations);
+    //return std::distance(first1, pair.first);
+    
+    return start_pos;
+}
+
+std::size_t offset_test_reverse(std::string::const_reverse_iterator first1, std::string::const_reverse_iterator last1, std::string::const_reverse_iterator first2, std::size_t start_pos, Mutations& mutations) {
+    std::pair<std::string::const_reverse_iterator, std::string::const_reverse_iterator> pair;
+    
+    Mutations m;
+    
+    pair = std::mismatch(first1, last1, first2, [&m,&start_pos](char a, char b) {
+        if (a=='N' || b=='N') {
+            return false;
+        } else if (a!=b) {
+            m.push_back(start_pos);
+        }
+        start_pos--;
+        return m.size()<2;
+    });
+    
+    //because we're expanding to the left, second accuring mutation should be in the first position.
+    if (m.size() > 1)
+        std::swap(m[0], m[1]);
+    
+    m.swap(mutations);
+    
+    //return  std::distance(first1, pair.first);
+    return start_pos;
 }
 
 /**
@@ -331,7 +335,7 @@ void remove_invalid_lime_candidates(Candidates &candidates, const Query &d1, con
     std::string::const_iterator d1_begin, d1_end=d1.end(), d2_begin, d2_end = d2.end();
     std::string::const_reverse_iterator d1_rbegin, d1_rend=d1.rend(), d2_rbegin, d2_rend = d2.rend();
     
-    Mutations mutations;
+    Mutations left_mutations, right_mutations;
     for (Candidates::size_type i = 0; i < length; ++i) {
         Candidate &c = candidates[i];
         const std::size_t idx_1 = c.idx_1;
@@ -344,14 +348,10 @@ void remove_invalid_lime_candidates(Candidates &candidates, const Query &d1, con
         d2_begin = d2.begin();
         std::advance(d1_begin, idx_1);
         std::advance(d2_begin, idx_2);
-
-        const std::size_t queryDistanceToEnd = size1-idx_1;
-        const std::size_t targetDistanceToEnd = size2-idx_2;
         
-        mutations.clear();
-        const long right_offset = (queryDistanceToEnd < targetDistanceToEnd) ? offset(d1_begin, d1_end, d2_begin,mutations) : offset(d2_begin,d2_end,d1_begin,mutations);
-        if (right_offset < SEQLENGTH/2 - WORDSIZE/2)
-            continue;
+        const std::size_t right_most_offset = (size1-idx_1 < size2-idx_2) ? offset_test_forward(d1_begin, d1_end, d2_begin, idx_1, right_mutations) : offset_test_forward(d2_begin, d2_end, d1_begin, idx_1, right_mutations);
+        if (right_most_offset < SEQLENGTH/2 - WORDSIZE/2) continue;
+ 
         
         //////////////////////////////////////////////////////////
         // scan in the forward direction (right to left)        //
@@ -360,134 +360,331 @@ void remove_invalid_lime_candidates(Candidates &candidates, const Query &d1, con
         d2_rbegin = d2.rbegin();
         std::advance(d1_rbegin, size1-idx_1);
         std::advance(d2_rbegin, size2-idx_2);
-
-        short right_first_mut, right_second_mut;
-        if (mutations.empty() || mutations.size()<2) {
-            right_first_mut=right_second_mut=right_offset;
-        } else {
-            right_first_mut=mutations[0]-1;
-            right_second_mut= mutations[1];
-        }
-
-        mutations.clear();
-        const long left_offset = (idx_1 < idx_2) ? offset(d1_rbegin, d1_rend, d2_rbegin,mutations) : offset(d2_rbegin, d2_rend, d1_rbegin,mutations);
-        short left_first_mut, left_second_mut;
-        if (mutations.empty() || mutations.size()<2) {
-            left_first_mut=left_second_mut=left_offset;
-        } else {
-            left_first_mut=mutations[0]-1;
-            left_second_mut= mutations[1];
-        }
+        const std::size_t left_most_offset = (idx_1 < idx_2) ? offset_test_reverse(d1_rbegin, d1_rend, d2_rbegin, idx_1, left_mutations) : offset_test_reverse(d2_rbegin, d2_rend, d1_rbegin, idx_1, left_mutations);
         
-        const long diff = (left_second_mut+right_first_mut > left_first_mut+right_second_mut) ? left_second_mut+right_first_mut : left_first_mut+right_second_mut;
-        if (diff  >= SEQLENGTH) {
-            const std::size_t target_start = (left_second_mut+right_first_mut > left_first_mut+right_second_mut-1) ? idx_2-left_second_mut : idx_2-left_first_mut;
-            const std::size_t query_start = (left_second_mut+right_first_mut > left_first_mut+right_second_mut-1) ? idx_1-left_second_mut : idx_1-left_first_mut;
+        std::string case_region = "";
+        std::size_t max_range = 0;
+        std::size_t query_start = 0, target_start = 0;
+        if (left_mutations.size()+right_mutations.size() < 2) {                         //case 1,2,3
+//            std::cout << "cases 1,2,3" << std::endl;
+            case_region = "cases 1,2,3";
             
-            //limeObjs_target.push_back(std::make_pair(idx_2-left_offset,diff));
-            //limeObjs_query.push_back(std::make_pair(idx_1-left_offset,diff));
-            limeObjs_target.push_back(std::make_pair(target_start,diff));
-            limeObjs_query.push_back(std::make_pair(query_start,diff));
+            query_start = left_most_offset;
+            target_start = idx_2-(idx_1-query_start);
+            max_range = right_most_offset-left_most_offset-1;
+            
+        } else if (right_mutations.size() + left_mutations.size() > 3) {                //case 9
+            const std::size_t range1 = right_mutations[0] - left_mutations[0];
+            const std::size_t range2 = right_mutations[1] - left_mutations[1];
+            
+            if (range1 >  range2) {
+//                std::cout << "case 9, range1" << std::endl;
+                case_region = "case 9, range1";
+                
+                max_range = range1;
+                query_start = left_mutations[0];
+                target_start = idx_2-(idx_1-left_mutations[0]);
+                
+            } else {
+//                std::cout << "case 9, range2" << std::endl;
+                case_region = "case 9, range2";
+                
+                max_range = range2;
+                query_start = left_mutations[1];
+                target_start = idx_2-(idx_1-left_mutations[1]);
+            }
+        } else if (right_mutations.size() == 1 && left_mutations.size() == 1) {         //case 4
+            const int range1 = static_cast<int>(right_most_offset - left_mutations[0]);
+            const int range2 = static_cast<int>(right_mutations[0] - left_most_offset);
+            
+            if (range1 > range2) {
+//                std::cout << "case 4, region 1" << std::endl;
+                case_region = "case 4, region 1";
+                
+                max_range = range1;
+                query_start = left_mutations[0];
+                target_start = target_start = idx_2-(idx_1-left_mutations[0]);
+                
+            } else {
+//                std::cout << "case 4, region 2" << std::endl;
+                case_region = "case 4, region 2";
+                
+                max_range = range2;
+                query_start = left_most_offset;
+                target_start = target_start = idx_2-(idx_1-left_most_offset);
+            }
+            
+        } else if (right_mutations.size() + left_mutations.size() > 2) {                //case 7,8
+            
+            if (right_mutations.size() > 1) {
+                
+                const std::size_t range1 = static_cast<int>(right_mutations[0] - left_most_offset);
+                const std::size_t range2 = right_mutations[1] - left_mutations[0];
+                
+                if (range1 > range2) {
+//                    std::cout << "case 7 range1" << std::endl;
+                    
+                    case_region = "case 7 range1";
+                    
+                    max_range = range1;
+                    query_start = left_most_offset;
+                    target_start = target_start = idx_2-(idx_1-left_most_offset);
+                    
+                } else {
+//                    std::cout << "case 7 range2" << std::endl;
+                    case_region = "case 7 range2";
+                    
+                    max_range = range2;
+                    query_start = left_mutations[0];
+                    target_start = idx_2-(idx_1-left_mutations[0]);
+                }
+                
+            } else {
+                const std::size_t range1 = right_mutations[0] - left_mutations[0];
+                const std::size_t range2 = static_cast<int>(right_most_offset - left_mutations[1]);
+                
+                if (range1 > range2) {
+//                    std::cout << "case 8 range1" << std::endl;
+                    
+                    case_region = "case 8 range1";
+                    
+                    max_range = range1;
+                    query_start = left_mutations[0];
+                    target_start = target_start = idx_2-(idx_1-left_mutations[0]);
+                    
+                } else {
+//                    std::cout << "case 8 range2" << std::endl;
+                    case_region = "case 8 range2";
+                    max_range = range2;
+                    query_start = left_mutations[1];
+                    target_start = idx_2-(idx_1-left_mutations[1]);
+                }
+            }
+        } else {                                                                        //case 5,6
+            
+            if (right_mutations.empty()) {                                              //case 5
+//                std::cout << "case 5" << std::endl;
+                case_region = "case 5";
+                
+                max_range = static_cast<int>(right_most_offset-left_mutations[0]);
+                query_start = left_mutations[0];
+                target_start = target_start = idx_2-(idx_1-left_mutations[0]);
+                
+            } else {                                                                    //case 6
+//                std::cout << "case 6" << std::endl;
+                case_region = "case 6";
+                
+                max_range = static_cast<int>(right_mutations[1] - left_most_offset);
+                query_start = left_most_offset;
+                target_start = target_start = idx_2-(idx_1-left_most_offset);
+            }
+        }
+        /**
+        if (max_range  >= SEQLENGTH) {
+            std::cout << case_region << std::endl;
+            std::cout << "left_most_offset: " << left_most_offset << ", right_most_offset: " << right_most_offset << std::endl;
+            std::cout << "left_mutations[0]: " << left_mutations[0] << ", left_mutations[1]: " << left_mutations[1] << std::endl;
+            std::cout << "right_mutations[0]: " << right_mutations[0] << ", right_mutations[1]:" << right_mutations[1] << std::endl;
 
-            std::cout << "query_idx,target_idx,left_offset,left_mut,right_mut,right_offset,query_start,target_start,diff,query_seq,target_seq" << std::endl;
-            std::cout << idx_1 << "," << idx_2 << "," << left_offset << "," << left_first_mut << "," << right_first_mut << "," << right_offset << "," << query_start << "," << target_start << "," << diff << "," << d1.substr(query_start,diff) << "," << d2.substr(target_start,diff) << std::endl;
-            ////////////////////////////////
-            //use during debug only
-            ////////////////////////////////
-//            debug("forward", left_offset, left_mut, right_mut, right_offset, query_start, target_start, idx_1, idx_2, diff, d1, d2);
-            
+            std::cout << "query range: " << max_range << ", start pos: " << query_start << ", idx 1: " << idx_1 << std::endl;
+            std::cout << "target range: " << max_range << ",start pos: " << target_start << ", idx 2: " << idx_2 << std::endl;
+            std::cout << "query:" << d1.substr(query_start, max_range) << std::endl;
+            std::cout << "target:" << d2.substr(target_start, max_range) << std::endl << std::endl;
+        }
+        */
+        if (max_range  >= SEQLENGTH) {
+            limeObjs_target.push_back(std::make_pair(target_start,max_range));
+            limeObjs_query.push_back(std::make_pair(query_start,max_range));
         }
     }
 }
 
-void remove_invalid_lime_candidates_reverse(Candidates &candidates, const Query &query_data, const Target &target_data) {
+void remove_invalid_lime_candidates_reverse(Candidates &candidates, const Query &d1, const Target &d2) {
     if (candidates.empty()) return;
     
     Candidates::size_type length = candidates.size();
-    const Sequence::size_type size1 = query_data.length(), size2 = target_data.length();
+    const Sequence::size_type size1 = d1.length(), size2 = d2.length();
     
-    std::string::const_iterator d1_begin, d1_end=query_data.end(), d2_begin, d2_end = target_data.end();
-    std::string::const_reverse_iterator d1_rbegin, d1_rend=query_data.rend(), d2_rbegin, d2_rend = target_data.rend();
+    std::string::const_iterator d1_begin, d1_end=d1.end(), d2_begin, d2_end = d2.end();
+    std::string::const_reverse_iterator d1_rbegin, d1_rend=d1.rend(), d2_rbegin, d2_rend = d2.rend();
     
-    Mutations mutations;
-    //pick up any left over iterations
+    Mutations left_mutations, right_mutations;
     for (Candidates::size_type i = 0; i < length; ++i) {
         Candidate &c = candidates[i];
         const std::size_t idx_1 = c.idx_1;
         const std::size_t idx_2 = c.idx_2;
         
-
         //////////////////////////////////////////////////////////
         // scan in the forward direction (left to right)        //
         //////////////////////////////////////////////////////////
-        d1_begin = query_data.begin();
-        d2_begin = target_data.begin();
+        d1_begin = d1.begin();
+        d2_begin = d2.begin();
         std::advance(d1_begin, idx_1);
         std::advance(d2_begin, idx_2);
-
-        const std::size_t queryDistanceToEnd = size1-idx_1;
-        const std::size_t targetDistanceToEnd = size2-idx_2;
         
-        mutations.clear();
-        const long right_offset = (queryDistanceToEnd < targetDistanceToEnd) ? offset(d1_begin, d1_end, d2_begin,mutations) : offset(d2_begin, d2_end, d1_begin,mutations);
+        const std::size_t right_most_offset = (size1-idx_1 < size2-idx_2) ? offset_test_forward(d1_begin, d1_end, d2_begin, idx_1, right_mutations) : offset_test_forward(d2_begin, d2_end, d1_begin, idx_1, right_mutations);
+        if (right_most_offset < SEQLENGTH/2 - WORDSIZE/2) continue;
         
-        if (right_offset < SEQLENGTH/2 - WORDSIZE/2)
-            continue;
         
         //////////////////////////////////////////////////////////
-        // scan in the reverse direction (right to left)        //
+        // scan in the forward direction (right to left)        //
         //////////////////////////////////////////////////////////
-        d1_rbegin = query_data.rbegin();
-        d2_rbegin = target_data.rbegin();
+        d1_rbegin = d1.rbegin();
+        d2_rbegin = d2.rbegin();
         std::advance(d1_rbegin, size1-idx_1);
         std::advance(d2_rbegin, size2-idx_2);
+        const std::size_t left_most_offset = (idx_1 < idx_2) ? offset_test_reverse(d1_rbegin, d1_rend, d2_rbegin, idx_1, left_mutations) : offset_test_reverse(d2_rbegin, d2_rend, d1_rbegin, idx_1, left_mutations);
+        
+        std::string case_region = "";
+        std::size_t max_range = 0;
+        std::size_t query_start = 0, target_start = 0;
+        if (left_mutations.size()+right_mutations.size() < 2) {                         //case 1,2,3
+            //            std::cout << "cases 1,2,3" << std::endl;
+            case_region = "cases 1,2,3";
 
-        short right_first_mut, right_second_mut;
-        if (mutations.empty() || mutations.size()<2) {
-            right_first_mut=right_second_mut=right_offset;
-        } else {
-            right_first_mut=mutations[0]-1;
-            right_second_mut= mutations[1];
+            //size - (idx+offset-idx)
+            query_start = d1.length() - (idx_1+right_most_offset-idx_1);
+            target_start = idx_2-(idx_1-left_most_offset);
+            max_range = right_most_offset-left_most_offset-1;
+            
+        } else if (right_mutations.size() + left_mutations.size() > 3) {                //case 9
+            const std::size_t range1 = right_mutations[0] - left_mutations[0];
+            const std::size_t range2 = right_mutations[1] - left_mutations[1];
+            
+            if (range1 >  range2) {
+                //                std::cout << "case 9, range1" << std::endl;
+                case_region = "case 9, range1";
+                
+                //size - (idx+offset-idx)
+                query_start = d1.length() - (idx_1+right_mutations[0]-idx_1);
+                target_start = idx_2-(idx_1-left_mutations[0]);
+                max_range = range1;
+                
+            } else {
+                //                std::cout << "case 9, range2" << std::endl;
+                case_region = "case 9, range2";
+                
+                //size - (idx+offset-idx)
+                query_start = d1.length() - (idx_1+right_mutations[1]-idx_1);
+                target_start = idx_2-(idx_1-left_mutations[1]);
+                max_range = range2;
+                
+            }
+        } else if (right_mutations.size() == 1 && left_mutations.size() == 1) {         //case 4
+            const std::size_t range1 = right_most_offset - left_mutations[0];
+            const std::size_t range2 = right_mutations[0] - left_most_offset;
+            
+            if (range1 > range2) {
+                //                std::cout << "case 4, region 1" << std::endl;
+                case_region = "case 4, region 1";
+                
+                //size - (idx+offset-idx)
+                query_start = d1.length() - (idx_1+right_most_offset-idx_1);
+                target_start = idx_2-(idx_1-left_mutations[0]);
+                max_range = range1;
+                
+            } else {
+                //                std::cout << "case 4, region 2" << std::endl;
+                case_region = "case 4, region 2";
+                
+                //size - (idx+offset-idx)
+                query_start = d1.length() - (idx_1+right_mutations[0]-idx_1);
+                target_start = idx_2-(idx_1-left_most_offset);
+                max_range = range2;
+            }
+            
+        } else if (right_mutations.size() + left_mutations.size() > 2) {                //case 7,8
+            
+            if (right_mutations.size() > 1) {                                           //case 7
+                
+                const std::size_t range1 = right_mutations[0] - left_most_offset;
+                const std::size_t range2 = right_mutations[1] - left_mutations[0];
+                
+                if (range1 > range2) {
+                    //                    std::cout << "case 7 range1" << std::endl;
+                    
+                    case_region = "case 7 range1";
+                    
+                    //size - (idx+offset-idx)
+                    query_start = d1.length() - (idx_1+right_mutations[0]-idx_1);
+                    target_start = idx_2-(idx_1-left_most_offset);
+                    max_range = range1;
+                    
+                } else {
+                    //                    std::cout << "case 7 range2" << std::endl;
+                    case_region = "case 7 range2";
+                    
+                    //size - (idx+offset-idx)
+                    query_start = d1.length() - (idx_1+right_mutations[1]-idx_1);
+                    target_start = idx_2-(idx_1-left_mutations[0]);
+                    max_range = range2;
+                }
+                
+            } else {                                                                  //case 8
+                const std::size_t range1 = right_mutations[0] - left_mutations[0];
+                const std::size_t range2 = right_most_offset - left_mutations[1];
+                
+                if (range1 > range2) {
+                    //                    std::cout << "case 8 range1" << std::endl;
+                    
+                    case_region = "case 8 range1";
+                    
+                    //size - (idx+offset-idx)
+                    query_start = d1.length() - (idx_1+right_mutations[0]-idx_1);
+                    target_start = target_start = idx_2-(idx_1-left_mutations[0]);
+                    max_range = range1;
+                    
+                } else {
+                    //                    std::cout << "case 8 range2" << std::endl;
+                    case_region = "case 8 range2";
+                    
+                    //size - (idx+offset-idx)
+                    query_start = d1.length() - (idx_1+right_most_offset-idx_1);
+                    target_start = idx_2-(idx_1-left_mutations[1]);
+                    max_range = range2;
+                }
+            }
+        } else {                                                                        //case 5,6
+            
+            if (right_mutations.empty()) {                                              //case 5
+                //                std::cout << "case 5" << std::endl;
+                case_region = "case 5";
+                
+                //size - (idx+offset-idx)
+                query_start = d1.length() - (idx_1+right_most_offset-idx_1);
+                target_start = target_start = idx_2-(idx_1-left_mutations[0]);
+                max_range = right_most_offset-left_mutations[0];
+                
+            } else {                                                                    //case 6
+                //                std::cout << "case 6" << std::endl;
+                case_region = "case 6";
+                
+                //size - (idx+offset-idx)
+                query_start = d1.length() - (idx_1+right_mutations[1]-idx_1);
+                target_start = idx_2-(idx_1-left_most_offset);
+                max_range = right_mutations[1] - left_most_offset;
+            }
         }
-        
-        mutations.clear();
-        const long left_offset = (idx_1 < idx_2) ? offset(d1_rbegin, d1_rend, d2_rbegin,mutations) : offset(d2_rbegin, d2_rend, d1_rbegin,mutations);
-        short left_first_mut, left_second_mut;
-        if (mutations.empty() || mutations.size()<2) {
-            left_first_mut=left_second_mut=left_offset;
-        } else {
-            left_first_mut=mutations[0]-1;
-            left_second_mut= mutations[1];
+        /**
+        if (max_range  >= SEQLENGTH) {
+            std::cout << case_region << std::endl;
+            std::cout << "left_most_offset: " << left_most_offset << ", right_most_offset: " << right_most_offset << std::endl;
+            
+            std::cout << "query range: " << max_range << ", start pos: " << query_start << ", idx 1: " << idx_1 << std::endl;
+            std::cout << "target range: " << max_range << ", start pos: " << target_start << ", idx 2: " << idx_2 << std::endl;
+            
+            Query rc = d1;
+            reverse_complement(rc);
+            std::cout << "target seq: " << d2.substr(target_start, max_range) << std::endl;
+            std::cout << "query: " << rc.substr(query_start, max_range) << std::endl << std::endl;
+            //std::cout << "query:" << d1.substr(query_start, max_range) << std::endl;
         }
+         **/
         
-        const long diff = (left_second_mut+right_first_mut > left_first_mut+right_second_mut) ? left_second_mut+right_first_mut : left_first_mut+right_second_mut;
-        if (diff  >= SEQLENGTH) {
-            
-            const std::size_t target_start = (left_second_mut+right_first_mut > left_first_mut+right_second_mut) ? idx_2-left_second_mut : idx_2-left_first_mut;
-            const std::size_t offset = (left_second_mut+right_first_mut > left_first_mut+right_second_mut) ? right_first_mut : right_second_mut;
-            
-    
-            const Sequence::size_type query_data_size = query_data.size();
-            const Sequence::size_type query_start = query_data_size - (idx_1+offset);
-            // const Sequence::size_type query_data_size = query_data.size();
-            //const Sequence::size_type query_start = query_data_size - (idx_1+right_offset);
-            
-            limeObjs_target.push_back(std::make_pair(target_start, diff));
-            limeObjs_query.push_back(std::make_pair(query_start, diff));
-            
-            const std::size_t query_start2 = (left_second_mut+right_first_mut > left_first_mut+right_second_mut) ? idx_1-left_second_mut : idx_1-left_first_mut;
-            std::cout << "query_idx,target_idx,left_offset,left_mut,right_mut,right_offset,query_start,target_start,diff,query_seq,target_seq" << std::endl;
-            std::cout << idx_1 << "," << idx_2 << "," << left_second_mut << "," << left_first_mut << "," << right_first_mut << "," << right_second_mut << "," << query_start2 << "," << target_start << "," << diff << "," << query_data.substr(query_start2,diff) << "," << target_data.substr(target_start,diff) << std::endl;
-            
-            ////////////////////////////////
-            //use during debug only
-            ////////////////////////////////
-//            if (target_start == 12234178) {
-//                std::cout << "Actual query seq start pos: " << query_start << ", length: " << diff << std::endl << std::endl;
-//            }
-//            const std::size_t rev_qstart_pos = (left_offset+right_mut > left_mut+right_offset) ? idx_1-left_offset : idx_1-left_mut;
-//            debug("reverse", left_offset, left_mut, right_mut, right_offset, rev_qstart_pos, target_start, idx_1, idx_2, diff, query_data, target_data);
-         }
+        if (max_range  >= SEQLENGTH) {
+            limeObjs_target.push_back(std::make_pair(target_start,max_range));
+            limeObjs_query.push_back(std::make_pair(query_start,max_range));
+        }
     }
 }
 
@@ -517,6 +714,9 @@ void generate_lime_candidates(const std::size_t i, const Chromosome &query_chr, 
     for (int j = 0; j < length; ++j) {
         const Element & element = vec2DPos[j];
         const Hash seqB_end = element.id;
+        
+        if (seqB_end < 0) continue; //skip anything flagged for mutations in the prefix
+        
         std::bitset<WORDSIZE*2> endB(seqB_end);
         
         
@@ -564,14 +764,15 @@ void generate_lime_candidates(const std::size_t i, const Chromosome &query_chr, 
 void find_candidates(const Hash seqA_begin, const Hash seqA_end, const std::size_t index, Candidates &candidates) {
     //1,2
     Pos vec2DPos = vec2D[seqA_end];
-    vec2DPos.erase(std::remove_if(vec2DPos.begin(), vec2DPos.end(), [seqA_begin](const Element &e){
-        return e.id == seqA_begin;
+    vec2DPos.erase(std::remove_if(vec2DPos.begin(), vec2DPos.end(), [](const Element &e){
+        return e.id > 0;
     }), vec2DPos.end());
+    
     
     const std::bitset<WORDSIZE*2> begin_A(seqA_begin);
     for (int i = 0; i < vec2DPos.size(); ++i) {
         const Element e = vec2DPos[i];
-        std::bitset<WORDSIZE*2> begin_B(e.id);
+        std::bitset<WORDSIZE*2> begin_B(e.id * -1);
         
         //3.
         begin_B ^= begin_A;

@@ -30,7 +30,7 @@ typedef int Hash;
 typedef int Location;
 typedef int FirstMutation;
 typedef int SecondMutation;
-typedef std::vector<short> Mutations;
+typedef std::vector<std::size_t> Mutations;
 
 typedef std::pair<FirstMutation, SecondMutation> MutationPos;
 typedef std::vector<Hash> Chromosome;
