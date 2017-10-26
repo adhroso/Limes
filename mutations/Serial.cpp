@@ -321,6 +321,7 @@ std::size_t offset_test_reverse(std::string::const_reverse_iterator first1, std:
     return start_pos;
 }
 
+//std::ofstream debug("/Users/andi/Applications/Research/Projects/Limes/Xcode/Limes/data/test/test_keys/output/debug_12/debug_12.limes.txt");
 /**
  Phase II - Fine grain filter
     d1 = query
@@ -479,19 +480,23 @@ void remove_invalid_lime_candidates(Candidates &candidates, const Query &d1, con
                 target_start = target_start = idx_2-(idx_1-left_most_offset);
             }
         }
-        /**
+        
         if (max_range  >= SEQLENGTH) {
-            std::cout << case_region << std::endl;
-            std::cout << "left_most_offset: " << left_most_offset << ", right_most_offset: " << right_most_offset << std::endl;
-            std::cout << "left_mutations[0]: " << left_mutations[0] << ", left_mutations[1]: " << left_mutations[1] << std::endl;
-            std::cout << "right_mutations[0]: " << right_mutations[0] << ", right_mutations[1]:" << right_mutations[1] << std::endl;
+            //std::cout << case_region << std::endl;
+            //std::cout << "left_most_offset: " << left_most_offset << ", right_most_offset: " << right_most_offset << std::endl;
+            //std::cout << "left_mutations[0]: " << left_mutations[0] << ", left_mutations[1]: " << left_mutations[1] << std::endl;
+            //std::cout << "right_mutations[0]: " << right_mutations[0] << ", right_mutations[1]:" << right_mutations[1] << std::endl;
 
-            std::cout << "query range: " << max_range << ", start pos: " << query_start << ", idx 1: " << idx_1 << std::endl;
-            std::cout << "target range: " << max_range << ",start pos: " << target_start << ", idx 2: " << idx_2 << std::endl;
-            std::cout << "query:" << d1.substr(query_start, max_range) << std::endl;
-            std::cout << "target:" << d2.substr(target_start, max_range) << std::endl << std::endl;
+            //std::cout << "query range: " << max_range << ", start pos: " << query_start << ", idx 1: " << idx_1 << std::endl;
+            //std::cout << "target range: " << max_range << ",start pos: " << target_start << ", idx 2: " << idx_2 << std::endl;
+            
+            //debug << "query start " << query_start << ", length " <<  max_range << std::endl;
+            //debug << "target start " << target_start << ", length " <<  max_range << std::endl;
+
+            //debug << "query:" << d1.substr(query_start, max_range) << std::endl;
+            //debug << "target:" << d2.substr(target_start, max_range) << std::endl << std::endl;
         }
-        */
+        
         if (max_range  >= SEQLENGTH) {
             limeObjs_target.push_back(std::make_pair(target_start,max_range));
             limeObjs_query.push_back(std::make_pair(query_start,max_range));
@@ -665,21 +670,24 @@ void remove_invalid_lime_candidates_reverse(Candidates &candidates, const Query 
                 max_range = right_mutations[1] - left_most_offset;
             }
         }
-        /**
+        
         if (max_range  >= SEQLENGTH) {
-            std::cout << case_region << std::endl;
-            std::cout << "left_most_offset: " << left_most_offset << ", right_most_offset: " << right_most_offset << std::endl;
+            //std::cout << case_region << std::endl;
+            //std::cout << "left_most_offset: " << left_most_offset << ", right_most_offset: " << right_most_offset << std::endl;
             
-            std::cout << "query range: " << max_range << ", start pos: " << query_start << ", idx 1: " << idx_1 << std::endl;
-            std::cout << "target range: " << max_range << ", start pos: " << target_start << ", idx 2: " << idx_2 << std::endl;
+            //std::cout << "query range: " << max_range << ", start pos: " << query_start << ", idx 1: " << idx_1 << std::endl;
+            //std::cout << "target range: " << max_range << ", start pos: " << target_start << ", idx 2: " << idx_2 << std::endl;
             
-            Query rc = d1;
-            reverse_complement(rc);
-            std::cout << "target seq: " << d2.substr(target_start, max_range) << std::endl;
-            std::cout << "query: " << rc.substr(query_start, max_range) << std::endl << std::endl;
+//            Query rc = d1;
+//            reverse_complement(rc);
+//            debug << "query start " << query_start << ", length " <<  max_range << std::endl;
+//            debug << "target start " << target_start << ", length " <<  max_range << std::endl;
+            
+//            debug << "target seq: " << d2.substr(target_start, max_range) << std::endl;
+//            debug << "query: " << rc.substr(query_start, max_range) << std::endl << std::endl;
             //std::cout << "query:" << d1.substr(query_start, max_range) << std::endl;
         }
-         **/
+        
         
         if (max_range  >= SEQLENGTH) {
             limeObjs_target.push_back(std::make_pair(target_start,max_range));
@@ -825,6 +833,7 @@ void find_limes_in_reverse_direction(Chromosome &query_chr, const Query &query_d
  a         = generated by target?
 */
 void find_limes(const Target &target_data, const Query &query_data, const Chromosome& target_chr) {
+    //debug << "#Forward" << std::endl;
     //skips every chunk size (SEQLENGTH/2 - WORDSIZE/2)
     Sequence query_data_cloned (query_data);
     Chromosome query_chr = generateVectorIndices(query_data_cloned);
@@ -846,8 +855,10 @@ void find_limes(const Target &target_data, const Query &query_data, const Chromo
     //////////////////////////
     // reverse scan         //
     //////////////////////////
+    //debug << "#Reverse" << std::endl;
     generateVectorIndecies(query_data_cloned, query_chr);
     find_limes_in_reverse_direction(query_chr, query_data_cloned, target_data, candidates);
+    //debug.close();
 }
 
 bool optimize(const std::vector<std::string> &g1, const std::vector<std::string> &g2) {
