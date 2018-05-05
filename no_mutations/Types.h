@@ -20,7 +20,7 @@
 
 #pragma mark - Definitions
 #define WORDSIZE 12
-#define SEQLENGTH 100
+#define SEQLENGTH 50
 
 #define BA_ENCODED_A 0x00
 #define BA_ENCODED_C 0x01

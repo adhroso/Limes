@@ -568,8 +568,8 @@ void run(const File &queryGenome, const File &targetG2, const File &limes, const
     load_next_batch(in_target, target_sequences, 1000000);
     in_target.close();
     
-    if (target_sequences.size() > query_sequences.size())
-        target_sequences.swap(query_sequences);
+//    if (target_sequences.size() > query_sequences.size())
+//        target_sequences.swap(query_sequences);
     
     // ease of reading the code
     typedef std::pair<Header, Sequence> Tupple;
